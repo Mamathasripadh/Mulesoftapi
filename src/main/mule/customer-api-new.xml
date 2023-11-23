@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway" xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd
+http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd">
+    <http:listener-config name="customer-api-new-httpListenerConfig">
+        <http:listener-connection host="${http.host}" port="${http.port}" />
+    </http:listener-config>
+    <apikit:config name="customer-api-new-config" api="resource::950f9b47-6eeb-4afa-915c-d0e3d90723f2:customer-api-new:1.0.0:raml:zip:customer-api-new.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <db:config name="Database_Config" doc:name="Database Config" doc:id="887f4eef-530a-41ef-8939-4131e3ac51b1" >
+		<db:my-sql-connection host="${db.host}" port="${db.port}" user="${secure::db.user}" password="${secure::db.password}" database="${db.database}" />
+	</db:config>
+	<configuration-properties doc:name="Configuration properties" doc:id="7290743e-ba67-4d21-b483-83e4b8ca960c" file="dev.properties" />
+	<secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="b0449d83-d217-4f14-85d2-e3b893197607" file="secure-dev.properties" key="6666" >
+		<secure-properties:encrypt algorithm="Blowfish" />
+	</secure-properties:config>
+	<api-gateway:autodiscovery apiId="${autodiscovery}" ignoreBasePath="true" doc:name="API Autodiscovery" doc:id="48829858-ad31-4280-907e-208c07415167" flowRef="customer-api-new-main" />
+	<flow name="customer-api-new-main">
+        <http:listener config-ref="customer-api-new-httpListenerConfig" path="${http.path}">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="customer-api-new-config" />
+    </flow>
+    <flow name="put:\updateCustomer:application\json:customer-api-new-config">
+        <db:update doc:name="Update" doc:id="0c04a2ca-a767-468a-adc7-b65a005389d5" config-ref="Database_Config">
+			<db:sql ><![CDATA[update customer9 set c_name=:c_name,c_ph=:c_ph where c_id=:c_id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"c_name": payload.name,
+	"c_ph": payload.ph,
+	"c_id": attributes.queryParams.id
+		
+}]]]></db:input-parameters>
+		</db:update>
+		<ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "successfully updated customer phone number"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="delete:\deleteCustomer:customer-api-new-config">
+        <db:delete doc:name="Delete" doc:id="5f5f73a0-3c26-4794-b4b0-042e98aa7374" config-ref="Database_Config">
+			<db:sql ><![CDATA[delete from customer9 where c_id=:c_id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"c_id": attributes.queryParams.id
+}]]]></db:input-parameters>
+		</db:delete>
+		<ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "successfully deleted customer account"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\getCustomer:customer-api-new-config">
+        <db:select doc:name="Select" doc:id="084f6d96-2242-46eb-9eda-d1e7e0b376bc" config-ref="Database_Config">
+			<db:sql ><![CDATA[select * from customer9 where c_id=:c_id and c_name=:c_name]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"c_id": attributes.queryParams.id,
+	"c_name": attributes.queryParams.name 
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"name": payload[0].c_name,
+	"id": payload[0].c_id,
+	"email":payload[0].c_email,
+	"ph":payload[0].c_ph
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\getCustomerById\(id):customer-api-new-config">
+        <ee:transform>
+            <ee:variables>
+                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <db:select doc:name="Select" doc:id="7b8d6b19-e5a3-4470-960a-0aeab1619d38" config-ref="Database_Config">
+			<db:sql ><![CDATA[select * from customer9 where c_id=:c_id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"c_id": attributes.uriParams.id
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"name": payload[0].c_name,
+	"id": payload[0].c_id,
+	"email":payload[0].c_email,
+	"ph":payload[0].c_ph
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="post:\createCustomer:application\json:customer-api-new-config">
+        <logger level="INFO" doc:name="Logger" doc:id="6316a6ca-e765-4713-a913-c6a0eaadc825" message="#[payload]"/>
+		<db:insert doc:name="Insert" doc:id="17c69f30-c167-4edb-be13-7d9eb9edc8a4" config-ref="Database_Config">
+			<db:sql ><![CDATA[insert into customer9(c_name,c_id,c_email,c_ph)values(:c_name,:c_id,:c_email,:c_ph)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"c_name": payload.name,
+	"c_id": payload.id,
+	"c_email": payload.email,
+	"c_ph": payload.ph
+	
+}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform>
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "ok"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+</mule>
